@@ -1,0 +1,127 @@
+%{
+  #include <cmath>
+  #include <iostream>
+  #include <string>
+  #include "src/compiler.hpp"
+
+  extern FILE *yyin;
+  int yylex();
+  int yyparse();
+  void yyerror(std::string);
+  
+%}
+
+%union{
+  char* str;
+  long long int num;
+}
+
+%define parse.error verbose
+
+%token <str> _NUM _ID
+%token <str> _DECLARE _BEGIN _END
+%token <str> _ASSIGN _READ _WRITE
+%token <str> _ADD _SUB _DIV _MUL _MOD 
+%token <str> _COMMA _SEM _COL
+%token <str> _EQ _NEQ _GT _LT _GEQT _LEQT
+%token <str> _LB _RB
+%token <str> _IF _THEN _ELSE _ENDIF
+%token <str> _WHILE _DO _ENDWHILE
+%token <str> _REPEAT _UNTIL
+%token <str> _FOR _FROM _TO _DOWNTO _ENDFOR
+
+%type <str> value expression identifier
+
+%% 
+
+program:
+  _DECLARE declarations _BEGIN  commands _END       {write_command("HALT", "");}       
+;
+
+declarations:
+  declarations _COMMA _ID                           {declare_variable($3, simple);}
+| declarations _COMMA _ID _LB _NUM _COL _NUM _RB    {declare_variable($3, $5, $7);}
+| _ID                                               {declare_variable($1, simple);}
+| _ID _LB _NUM _COL _NUM _RB                        {declare_variable($1, $3, $5);}
+;
+
+commands:
+  commands command                                  {}
+| command                                           {}
+;
+
+command:
+  identifier _ASSIGN expression _SEM            {assign_value($1);}
+| _IF condition _THEN commands                  {start_if();} 
+                    _ELSE commands _ENDIF       {finish_if();}
+| _IF condition _THEN commands _ENDIF           {finish_if();}
+| _WHILE                                        {start_while();}
+          condition _DO commands _ENDWHILE      {finish_while();}
+| _REPEAT                                       {start_repeat();}
+          commands _UNTIL                       {repeat_until = true;}
+                          condition _SEM        {finish_repeat();}
+| _FOR _ID _FROM value _TO value _DO            {start_for($2, $4, $6);}
+                          commands _ENDFOR      {end_for(1);} 
+| _FOR _ID _FROM value _DOWNTO value _DO        {start_for($2, $4, $6);}
+                          commands _ENDFOR      {end_for(2);}
+| _READ identifier  _SEM                        {read_value($2);}
+| _WRITE value _SEM                             {write_value($2);}
+;
+
+expression:
+  value                                           {set_reg_to_val($1);}
+| value _ADD value                                {add_values($1, $3);}
+| value _SUB value                                {sub_values($1, $3);}
+| value _DIV value                                {div_values($1, $3);}
+| value _MUL value                                {mul_values($1, $3);}
+| value _MOD value                                {mod_values($1, $3);}
+;
+
+condition:
+  value _EQ value                                  { if(!repeat_until) cond_eq($1, $3); else cond_neq($1, $3);}
+| value _NEQ value                                 { if(!repeat_until) cond_neq($1, $3); else cond_eq($1, $3);}
+| value _LT value                                  { if(!repeat_until) cond_lt($1, $3); else cond_geqt($1, $3);}
+| value _GT value                                  { if(!repeat_until) cond_gt($1, $3); else cond_leqt($1, $3);}
+| value _LEQT value                                { if(!repeat_until) cond_leqt($1, $3); else cond_gt($1, $3);}
+| value _GEQT value                                { if(!repeat_until) cond_geqt($1, $3); else cond_lt($1, $3);}
+;
+
+value:
+  _NUM                                            {load_num_to_mem($1); $$=$1;}
+| identifier                                      {$$=$1;}
+;
+
+identifier:
+  _ID                                             {$$=$1; check_if_exists($1);}
+| _ID _LB _ID _RB                                 {get_composed_id($1, $3); $$=$1;}
+| _ID _LB _NUM _RB                                {get_composed_num_id($1, $3); $$=$1;}
+;
+
+%%
+
+void yyerror (std::string s)
+{
+  cerr<<"LINE "<<yylineno<<": "<<s<<" "<<"\n";
+  exit(1);
+}
+
+int main(int argv, char* argc[])
+{ 
+  yyin = fopen(argc[1], "r");
+
+  if (yyin == NULL)
+  {
+    string mess = "File does not exist: "+(string)argc[1];
+    error(mess);
+  }
+
+  yyparse ();
+  
+  ofstream file;
+  file.open(argc[2]);
+
+  for (int cmd = 0; cmd < commands.size(); cmd++) 
+    file << commands.at(cmd) << endl;
+    
+  file.close();
+}
