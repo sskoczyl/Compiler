@@ -17,7 +17,7 @@ Example source codes (*.imp files) for compiler can be found in `programs` folde
 In order to build compiler and interpreter, in `compiler` and `virtual-machine` folders use `make` command.  
 Compilator usage (in `compiler` folder):  
 ```
-./kompilator <input_file.imp> <output_file.imp>
+./kompilator <input_file.imp> <output_file.mr>
 ```
 
 To run compiled program (in `virtual-machine` folder) use:
